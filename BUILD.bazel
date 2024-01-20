@@ -1,0 +1,106 @@
+load("@com_github_grpc_grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+proto_library(
+    name = "model_config_proto",
+    srcs = [
+        "protobuf/model_config.proto",
+    ],
+    strip_import_prefix = "protobuf",
+)
+
+proto_library(
+    name = "grpc_service_proto",
+    srcs = [
+        "protobuf/grpc_service.proto"
+    ],
+    deps = [
+        ":model_config_proto"
+    ],
+)
+
+cc_proto_library(
+    name = "cc_grpc_service_proto",
+    deps = [
+        ":grpc_service_proto"
+    ]
+)
+
+cc_grpc_library(
+    name = "cc_grpc_service",
+    srcs = [
+        ":grpc_service_proto",
+    ],
+    grpc_only = True,
+    deps = [
+        ":cc_grpc_service_proto",
+    ],
+)
+
+proto_library(
+    name = "health_service_proto",
+    srcs = [
+        "protobuf/health.proto",
+    ],
+)
+
+cc_proto_library(
+    name = "cc_health_service_proto",
+    deps = [
+        ":health_service_proto",
+    ],
+)
+
+cc_grpc_library(
+    name = "cc_health_service",
+    srcs = [
+        ":health_service_proto",
+    ],
+    grpc_only = True,
+    deps = [
+        ":cc_health_service_proto"
+    ],
+)
+
+cc_library(
+    name = "triton-common",
+    srcs = glob([
+        "src/*.cc"
+    ]),
+    hdrs = glob([
+        "include/triton/common/*.h"
+    ]),
+    defines = [
+        "TRITON_ENABLE_LOGGING",
+    ] + select({
+        "@rules_cuda//cuda:is_enabled": ["TRITON_ENABLE_NVTX"],
+        "//conditions:default": [],
+    }),
+    includes = [
+        "include",
+    ],
+    deps = [
+        "@rapidjson",
+        "@com_google_protobuf//:protobuf",
+        ":cc_grpc_service",
+        ":cc_health_service",
+    ] + select({
+        "@rules_cuda//cuda:is_enabled": [
+            "@rules_cuda//cuda:runtime"
+        ],
+        "//conditions:default": [],
+    })
+)
+
+cc_test(
+    name = "triton_json_test",
+    srcs = [
+        "src/test/triton_json/triton_json_test.cc",
+    ],
+    deps = [
+        ":triton-common",
+        "@googletest//:gtest"
+    ],
+    linkstatic = True
+)
